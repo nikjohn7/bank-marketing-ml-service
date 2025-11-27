@@ -13,7 +13,7 @@ env/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
+
 
 # OS / editor
 .DS_Store
@@ -31,3 +31,4 @@ ml-engineer-takehome.zip
 Take-home_Exercise_Mid-Senior_ML_Engineer.pdf
 *.pdf
 data/dataset.csv
+data/*.parquet
