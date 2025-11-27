@@ -1,0 +1,33 @@
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+.test_env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Test / cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project artifacts and large files
+artifacts/
+ml-engineer-takehome.zip
+Take-home_Exercise_Mid-Senior_ML_Engineer.pdf
+*.pdf
+data/dataset.csv
