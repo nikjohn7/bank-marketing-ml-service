@@ -4,25 +4,36 @@ A production-ready ML service predicting term deposit subscriptions from bank ma
 
 ## Quick Start
 
+The repo includes a pre-trained model in `artifacts/`, so the API works out of the box.
+
+**Docker (recommended):**
 ```bash
-# Setup
+docker build -t bank-marketing-api .
+docker run -p 8000:8000 bank-marketing-api
+
+# API is now running at http://localhost:8000
+# Try: curl http://localhost:8000/health
+```
+
+**Local setup:**
+```bash
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# Train model (requires data/dataset_prepared.parquet)
-python -m src.train
-
-# Run API
+# Run API (model already trained)
 uvicorn src.app:app --host 0.0.0.0 --port 8000
 
-# Test
+# Run tests
 pytest tests/ -v
 ```
 
-**Docker:**
+**To retrain the model:**
 ```bash
-docker build -t bank-marketing-api .
-docker run -p 8000:8000 -v $(pwd)/artifacts:/app/artifacts bank-marketing-api
+# Local
+python -m src.train
+
+# Or via Docker
+docker run -v $(pwd)/artifacts:/app/artifacts bank-marketing-api python -m src.train
 ```
 
 ---

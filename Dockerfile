@@ -15,12 +15,13 @@ COPY requirements.txt .
 # Install Python dependencies (production only)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code and data
 COPY src/ ./src/
-COPY artifacts/ ./artifacts/
+COPY data/ ./data/
 
-# Create data directory (for potential volume mounts)
-RUN mkdir -p data
+# Copy pre-trained model artifacts
+# These are committed to the repo so the API works out of the box
+COPY artifacts/ ./artifacts/
 
 # Expose FastAPI port
 EXPOSE 8000
