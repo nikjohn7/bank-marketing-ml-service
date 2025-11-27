@@ -1,0 +1,92 @@
+{
+  "numeric_features": [
+    "age",
+    "balance",
+    "day",
+    "campaign",
+    "previous"
+  ],
+  "categorical_features": [
+    "job",
+    "marital",
+    "education",
+    "default",
+    "housing",
+    "loan",
+    "contact",
+    "month",
+    "poutcome",
+    "was_contacted_before"
+  ],
+  "target": "target",
+  "id_col": "customer_id",
+  "group_col": "profile_id",
+  "valid_categories": {
+    "job": [
+      "admin.",
+      "blue-collar",
+      "entrepreneur",
+      "housemaid",
+      "management",
+      "retired",
+      "self-employed",
+      "services",
+      "student",
+      "technician",
+      "unemployed",
+      "unknown"
+    ],
+    "marital": [
+      "divorced",
+      "married",
+      "single"
+    ],
+    "education": [
+      "primary",
+      "secondary",
+      "tertiary",
+      "unknown"
+    ],
+    "default": [
+      "no",
+      "yes"
+    ],
+    "housing": [
+      "no",
+      "yes"
+    ],
+    "loan": [
+      "no",
+      "yes"
+    ],
+    "contact": [
+      "cellular",
+      "telephone",
+      "unknown"
+    ],
+    "month": [
+      "apr",
+      "aug",
+      "dec",
+      "feb",
+      "jan",
+      "jul",
+      "jun",
+      "mar",
+      "may",
+      "nov",
+      "oct",
+      "sep"
+    ],
+    "poutcome": [
+      "failure",
+      "other",
+      "success",
+      "unknown"
+    ],
+    "was_contacted_before": [
+      "No",
+      "Yes"
+    ]
+  }
+}
