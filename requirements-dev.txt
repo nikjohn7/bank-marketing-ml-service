@@ -1,0 +1,19 @@
+# Include production requirements
+-r requirements.txt
+
+# Jupyter & Notebooks
+jupyter==1.1.1
+ipykernel==7.1.0
+ipython==9.7.0
+notebook==7.5.0
+jupyterlab==4.5.0
+
+# Visualization
+matplotlib==3.10.7
+seaborn==0.13.2
+
+# Statistical tests (for EDA)
+scipy==1.16.3
+
+# HTTP client (for testing)
+httpx==0.28.1
