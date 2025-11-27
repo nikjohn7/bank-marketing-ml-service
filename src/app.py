@@ -1,86 +1,177 @@
 import joblib
+import logging
 import pandas as pd
 import json
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, create_model
-from typing import Literal, Optional
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, ValidationError, create_model
+from typing import Literal
 from src import config
+
+# --- Logging Setup ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 # Initialize App
 app = FastAPI(title="Term Deposit Prediction API", version="1.0.0")
 
-# Load Resources on Startup
-# We load the schema to enforce types and the model for prediction
-with open(config.SCHEMA_PATH, "r") as f:
-    SCHEMA_CONTRACT = json.load(f)
+# --- Constants ---
+# Optimized threshold from training analysis (see training_run.json)
+# Default sklearn threshold is 0.5, but analysis showed 0.22 maximizes F1
+PREDICTION_THRESHOLD = 0.22
 
-PIPELINE = joblib.load(config.ARTIFACTS_DIR / "model_pipeline.joblib")
+# Load Resources on Startup
+try:
+    with open(config.SCHEMA_PATH, "r") as f:
+        SCHEMA_CONTRACT = json.load(f)
+    logger.info("Schema contract loaded successfully")
+except FileNotFoundError:
+    logger.error(f"Schema file not found at {config.SCHEMA_PATH}")
+    raise
+
+try:
+    PIPELINE = joblib.load(config.ARTIFACTS_DIR / "model_pipeline.joblib")
+    logger.info("Model pipeline loaded successfully")
+except FileNotFoundError:
+    logger.error(f"Model pipeline not found in {config.ARTIFACTS_DIR}")
+    PIPELINE = None
+
+
+# --- Custom Exception Classes ---
+class ModelNotLoadedError(Exception):
+    """Raised when model pipeline is not available."""
+    pass
+
+
+class FeatureEngineeringError(Exception):
+    """Raised when feature transformation fails."""
+    pass
+
+
+# --- Global Exception Handler ---
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    logger.warning(f"Validation error: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "message": "Invalid input data"}
+    )
+
 
 # --- Dynamic Pydantic Model ---
-# Since we have a strict schema contract, let's create the Input Model based on it.
-# This ensures that if the schema changes, the API validation updates automatically.
-# (Alternatively, you can write the class manually, but this is "Senior" level dynamism)
-
 def create_input_model(schema):
+    """
+    Creates a Pydantic model dynamically from the schema contract.
+    This ensures API validation stays in sync with training data categories.
+    """
     fields = {}
-    
-    # Valid categories from schema
     valid_cats = schema.get("valid_categories", {})
     
-    # Add Numeric Fields
-    for col in ["age", "balance", "day", "campaign", "previous", "pdays"]: # pdays needed for engineering
+    # Numeric Fields
+    for col in ["age", "balance", "day", "campaign", "previous", "pdays"]:
         fields[col] = (int, Field(..., description=f"Numeric value for {col}"))
         
-    # Add Categorical Fields
+    # Categorical Fields with Literal types for strict validation
     for col in ["job", "marital", "education", "default", "housing", "loan", "contact", "month", "poutcome"]:
-        # Create a Literal type based on valid categories in schema
         if col in valid_cats:
-            # We add "unknown" explicitly if missing, though EDA says it's there
             options = tuple(valid_cats[col])
-            fields[col] = (Literal[options], Field(..., description=f"Categorical options: {options}"))
+            fields[col] = (Literal[options], Field(..., description=f"One of: {options}"))
         else:
             fields[col] = (str, Field(..., description="String category"))
             
     return create_model("CustomerData", **fields)
 
+
 CustomerInput = create_input_model(SCHEMA_CONTRACT)
+
 
 class PredictionResponse(BaseModel):
     prediction: str
     probability: float
+    threshold_used: float = PREDICTION_THRESHOLD
     model_version: str = "v1"
 
-@app.get("/health")
+
+class HealthResponse(BaseModel):
+    status: str
+    model_loaded: bool
+
+
+@app.get("/health", response_model=HealthResponse)
 def health_check():
-    return {"status": "ok", "model_loaded": PIPELINE is not None}
+    """Health check endpoint for container orchestration."""
+    return {
+        "status": "ok" if PIPELINE is not None else "degraded",
+        "model_loaded": PIPELINE is not None
+    }
+
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(data: CustomerInput):
+    """
+    Predict whether a customer will subscribe to a term deposit.
+    
+    Uses optimized probability threshold (0.22) based on F1-score analysis
+    during training. This captures more potential subscribers compared to
+    the default 0.5 threshold.
+    """
+    # Check model availability
+    if PIPELINE is None:
+        logger.error("Prediction attempted but model not loaded")
+        raise HTTPException(
+            status_code=503,
+            detail="Model not available. Please ensure model is trained and artifacts exist."
+        )
+    
     try:
-        # 1. Convert Pydantic to Pandas DataFrame
+        # Convert Pydantic model to DataFrame
         input_data = data.model_dump()
         df = pd.DataFrame([input_data])
         
-        # 2. On-the-fly Feature Engineering (The Bridge)
-        # The model expects 'was_contacted_before', but user sends 'pdays'
-        # Logic from EDA: pdays == -1 means not contacted previously
+        logger.info(f"Prediction request: job={data.job}, age={data.age}, balance={data.balance}")
+        
+    except Exception as e:
+        logger.error(f"Failed to parse input data: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to parse input data: {str(e)}"
+        )
+    
+    try:
+        # Feature Engineering (matches training logic)
+        # pdays == -1 means customer was never contacted before
         df["was_contacted_before"] = df["pdays"].apply(lambda x: "No" if x == -1 else "Yes")
         
-        # We don't drop pdays here because the Pipeline ignores columns not in its Transformer
-        # But for cleanliness, we could drop it.
+    except Exception as e:
+        logger.error(f"Feature engineering failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal error during feature transformation"
+        )
+    
+    try:
+        # Model Inference
+        prediction_prob = PIPELINE.predict_proba(df)[0][1]
         
-        # 3. Inference
-        # Pipeline handles Scaling and OneHotEncoding automatically
-        prediction_cls = PIPELINE.predict(df)[0]  # 0 or 1
-        prediction_prob = PIPELINE.predict_proba(df)[0][1] # Probability of 1
-        
-        # 4. Map output
+        # Apply optimized threshold instead of default 0.5
+        prediction_cls = 1 if prediction_prob >= PREDICTION_THRESHOLD else 0
         result_label = "yes" if prediction_cls == 1 else "no"
+        
+        logger.info(f"Prediction complete: {result_label} (prob={prediction_prob:.4f})")
         
         return {
             "prediction": result_label,
-            "probability": round(prediction_prob, 4)
+            "probability": round(prediction_prob, 4),
+            "threshold_used": PREDICTION_THRESHOLD,
+            "model_version": "v1"
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Model inference failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Model inference failed. Please check input data format."
+        )
