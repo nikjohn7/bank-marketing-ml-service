@@ -216,6 +216,6 @@ I aimed to stay within the 3-hour limit. Here's roughly how I spent my time:
 | README & documentation | ~25 min | Tried to be concise while covering all the required questions |
 | Second pass / tweaks | ~15 min | While writing the README I noticed small things to improve |
 
-**Total: ~3 hours 12 minutes**
+**Total: ~3 hours 50 minutes**
 
 Slightly over, mainly because I went deep on the EDA. In hindsight, I could have timeboxed that more strictly given the 40/60 split guidance.
